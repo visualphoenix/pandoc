@@ -1,0 +1,48 @@
+FROM haskell:7.10.2 
+ENV GHC_VERSION=7.10.2
+ENV HOME=/root DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true
+
+RUN true \
+ && echo 'tzdata tzdata/Areas select America' > /etc/preseed \
+ && echo 'tzdata tzdata/Zones/America select Los_Angeles' >> /etc/preseed \
+ && echo 'locales locales/locales_to_be_generated multiselect     en_US.UTF-8 UTF-8' >> /etc/preseed \
+ && echo 'locales locales/default_environment_locale      select  en_US.UTF-8' >> /etc/preseed \
+ && echo 'path-exclude /usr/share/doc/*' >> /etc/dpkg/dpkg.cfg.d/01_nodoc \
+ && echo 'path-exclude /usr/share/info/*' >> /etc/dpkg/dpkg.cfg.d/01_nodoc \
+ && echo 'path-exclude=/usr/share/locale/*' >> /etc/dpkg/dpkg.cfg.d/01_nodoc \
+ && echo 'path-include=/usr/share/locale/en*' >> /etc/dpkg/dpkg.cfg.d/01_nodoc \
+ && echo 'path-include=/usr/share/locale/locale.alias' >> /etc/dpkg/dpkg.cfg.d/01_nodoc \
+ && echo 'path-exclude=/usr/share/man/*' >> /etc/dpkg/dpkg.cfg.d/01_nodoc \
+ && echo 'path-include=/usr/share/man/en*' >> /etc/dpkg/dpkg.cfg.d/01_nodoc \
+ && echo 'path-include=/usr/share/man/man[1-9]/*' >> /etc/dpkg/dpkg.cfg.d/01_nodoc \
+ && debconf-set-selections /etc/preseed \
+ && apt-get update -yy \
+ && apt-get upgrade -yy \
+ && apt-get install -yy --no-install-recommends --no-install-suggests \
+        locales tar \
+        texlive-latex-base texlive-fonts-recommended \
+ && export LANGUAGE=en_US.UTF-8 \
+ && export LANG=en_US.UTF-8 \
+ && export LC_ALL=en_US.UTF-8 \
+ && locale-gen en_US.UTF-8 \
+ && dpkg-reconfigure -f noninteractive locales \
+ && apt-get clean -yy \
+ && apt-get autoclean -yy \
+ && apt-get autoremove -yy \
+ && rm -rf /var/cache/debconf/*-old \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV PATH /root/.cabal/bin:/opt/cabal/1.22/bin:/opt/ghc/$GHC_VERSION/bin:/opt/happy/1.19.5/bin:/opt/alex/3.1.4/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+ADD https://github.com/jgm/pandoc/archive/master.tar.gz /pandoc.tar.gz
+RUN mkdir /pandoc && tar xf pandoc.tar.gz -C /pandoc --strip-components=1
+WORKDIR /pandoc
+
+RUN cabal update
+RUN cabal install hsb2hs \
+ && cabal install --flags="embed_data_files" pandoc pandoc-citeproc
+
+ADD ./entrypoint.sh /
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
